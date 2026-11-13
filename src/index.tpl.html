@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LLCC Radar Workbench</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A1%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#0b0f14;--pane:#121820;--pane2:#18202a;--line:#243040;--tx:#dfe8f2;--mut:#8fa3b8;--acc:#3df0ff;--pri:#1f7fd0;--ok:#1f9d55;--bad:#d64545;--warn:#d9a21b;color-scheme:dark}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{background:var(--bg);color:var(--tx);font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+#app{display:grid;grid-template:auto 1fr auto / 330px 1fr;height:100%}
+header{grid-column:1/3;display:flex;align-items:center;gap:14px;padding:6px 12px;background:var(--pane);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{font-weight:700;font-size:15px;letter-spacing:.2px;white-space:nowrap}.tag{font-weight:600;font-size:10.5px;color:#1a1300;background:#f2b632;border-radius:3px;padding:2px 6px;margin-left:8px;vertical-align:middle;letter-spacing:.4px}
+#timebar{display:flex;align-items:center;gap:6px;flex:1;min-width:300px}#tslider{flex:1;min-width:80px;accent-color:var(--acc)}#tlabel{font-variant-numeric:tabular-nums;min-width:215px;color:var(--tx)}
+.tools{display:flex;gap:6px;align-items:center}
+button,select,input[type=text],input[type=number],input[type=datetime-local],textarea{background:var(--pane2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 8px;font:inherit}
+button{cursor:pointer}button:hover{border-color:#3a4c63;background:#1e2834}button.pri{background:var(--pri);border-color:var(--pri);color:#fff}button.on{background:var(--acc);color:#001a1e;border-color:var(--acc)}
+aside{grid-row:2;display:flex;flex-direction:column;background:var(--pane);border-right:1px solid var(--line);min-height:0}
+#tabs{display:flex;flex-wrap:wrap;gap:2px;padding:6px 6px 0}#tabs button{border-radius:5px 5px 0 0;border-bottom:none;padding:4px 7px;font-size:12px;color:var(--mut)}#tabs button.on{background:var(--bg);color:var(--tx);border-color:var(--line)}
+#tabbody{flex:1;overflow:auto;padding:8px 10px 20px;background:var(--bg);border-top:1px solid var(--line)}
+section{margin-bottom:14px}h3{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--mut);margin:10px 0 6px;font-weight:600}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:5px 0}.fld{display:block;margin:7px 0}.fld>span{display:block;color:var(--mut);font-size:12px;margin-bottom:2px}.fld>input[type=text],.fld>select,.fld>input[type=datetime-local]{width:100%}.fld small{display:block;color:var(--mut);font-size:11.5px;margin-top:2px}
+.chk{display:flex;gap:6px;align-items:flex-start;margin:6px 0}.note{color:var(--mut);font-size:12px;margin:6px 0}.note.warn{color:#f1d28a;background:#2a2210;border:1px solid #57461a;border-radius:5px;padding:6px 8px}
+textarea{width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.drop{border:1.5px dashed #3a4c63;border-radius:8px;padding:10px;color:var(--mut);font-size:12px}body.dragging .drop,body.dragging #maps{outline:2px dashed var(--acc);outline-offset:-4px}
+.list .li{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #18212c}.list button{padding:1px 6px;font-size:11.5px}
+.stops .stop{display:flex;gap:6px;align-items:center;margin:3px 0}.stops input[type=number]{width:80px}.stops input[type=color]{width:38px;height:26px;padding:0;border:1px solid var(--line);background:none}
+.tbl{border-collapse:collapse;width:100%;margin:6px 0}.tbl td,.tbl th{border-bottom:1px solid #1a2430;padding:4px 6px;text-align:left;vertical-align:top}.tbl th{color:var(--mut);font-weight:600;font-size:11.5px}.llcc .val{color:#b9c8d8;margin-top:2px}
+.chip{display:inline-block;min-width:52px;text-align:center;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700;text-transform:uppercase}.chip.ok{background:#123a25;color:#6fe3a1}.chip.bad{background:#4a1616;color:#ff9a9a}.chip.warn{background:#463608;color:#ffd666}
+main{grid-row:2;display:flex;flex-direction:column;min-width:0;min-height:0}
+.maps{flex:1;display:grid;gap:1px;background:var(--line);min-height:0}.maps.n1{grid-template:1fr/1fr}.maps.n2{grid-template:1fr/1fr 1fr}.maps.n4{grid-template:1fr 1fr/1fr 1fr}
+.panel{display:flex;flex-direction:column;background:var(--bg);min-width:0;min-height:0}.phead{display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--pane);flex-wrap:wrap}.phead select{padding:2px 4px;max-width:250px}.pinfo{color:var(--mut);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:60px}
+.pbody{position:relative;flex:1;min-height:0;overflow:hidden;background:#070a0e}.pbody canvas{position:absolute;inset:0;width:100%;height:100%}.over{cursor:grab}body.xs-tool .over{cursor:crosshair}
+.readout{position:absolute;left:8px;bottom:6px;background:rgba(8,12,17,.78);border-radius:4px;padding:2px 7px;font-variant-numeric:tabular-nums;pointer-events:none}.readout:empty{display:none}
+.legend{display:flex;align-items:center;gap:8px;padding:3px 8px 14px;background:var(--pane);min-height:34px}.cname{color:var(--mut);font-size:11.5px;min-width:42px}.cwrap{position:relative;flex:1}.cbar{height:10px;border-radius:2px;border:1px solid #000}.cbar.big{height:18px;margin:6px 0}.cticks span{position:absolute;top:11px;transform:translateX(-50%);font-size:10px;color:var(--mut)}
+#xsec{height:300px;display:flex;flex-direction:column;border-top:1px solid var(--line);background:var(--pane)}#xsec.hidden,.hidden{display:none!important}#xshead{display:flex;gap:8px;align-items:center;padding:4px 8px}#xshead b{margin-right:auto}#xsbody{flex:1;display:flex;gap:1px;min-height:0}#xsbody canvas{flex:1;min-width:0;width:100%;height:100%;display:block}
+footer{grid-column:1/3;padding:3px 12px;background:var(--pane);border-top:1px solid var(--line);color:var(--mut);font-size:12px;min-height:22px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+#toasts{position:fixed;right:14px;bottom:36px;display:flex;flex-direction:column;gap:6px;z-index:50;max-width:440px}.toast{background:#1d2937;border:1px solid #34485e;border-left:4px solid var(--acc);border-radius:6px;padding:8px 12px;white-space:pre-wrap;box-shadow:0 6px 20px rgba(0,0,0,.5)}.toast.err{border-left-color:var(--bad)}
+#v3d{position:fixed;inset:0;background:#070a0e;z-index:40;display:flex}#v3dcanvas{flex:1;min-width:0;width:100%;height:100%;display:block}#v3dside{width:290px;background:var(--pane);border-left:1px solid var(--line);padding:10px;overflow:auto}#v3dinfo{position:absolute;left:12px;top:10px;background:rgba(8,12,17,.7);padding:6px 10px;border-radius:6px}#v3dinfo .lv{display:inline-flex;align-items:center;gap:5px;margin-right:12px}#v3dinfo i{width:12px;height:12px;border-radius:2px;display:inline-block}
+</style></head>
+<body>
+<div id="app">
+<header>
+  <div class="brand">LLCC Radar Workbench<span class="tag">EXPERIMENTAL · NOT FOR OPERATIONAL DECISIONS</span></div>
+  <div id="timebar"><button id="prev" title="Previous frame (←)">◀</button><button id="play" title="Play / pause (space)">▶</button><button id="next" title="Next frame (→)">▶|</button><input id="tslider" type="range" min="0" max="0" value="0"><span id="tlabel">no data loaded</span><label class="chk" style="margin:0"><input type="checkbox" id="live">Live</label></div>
+  <div class="tools"><select id="npanels" title="Number of map panels"><option value="1">1 panel</option><option value="2">2 panels</option><option value="4">4 panels</option></select><button id="toolxs" title="Drag a line on the map (or Shift-drag any time)">Cross-section</button><button id="xsbtn" title="Show / hide the cross-section drawer">Drawer</button><button id="btn3d" class="pri">3-D</button></div>
+</header>
+<aside><nav id="tabs"></nav><div id="tabbody"></div></aside>
+<main><div id="maps" class="maps n1"></div>
+  <div id="xsec" class="hidden"><div id="xshead"><b>Vertical cross-section</b><select id="xsmode"><option value="line">Line A → B</option><option value="traj">Along flight path</option></select><select id="xsinterp"><option value="1">Interpolated between tilts</option><option value="0">Beams only (shows scan gaps)</option></select><label>top <input id="xstop" type="number" value="60" style="width:64px"> kft</label><button id="xsclose">✕</button></div><div id="xsbody"></div></div>
+</main>
+<footer id="status"></footer>
+</div>
+<div id="v3d" class="hidden"><canvas id="v3dcanvas"></canvas><div id="v3dinfo"></div><div id="v3dside"><h3>3-D view</h3><div id="v3dctl"></div></div></div>
+<div id="toasts"></div>
+<script>/*THREE*/</script>
+<script id="decoder-src">/*DECODER*/</script>
+<script>/*APP*/</script>
+</body></html>
