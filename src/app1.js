@@ -24,7 +24,7 @@ var S = {
   qc: RW.defaultQC(), llcc: RW.defaultLLCC(), llccRes: null,
   units: { h: 'kft', d: 'nmi' }, cts: {}, ctAssign: {}, prods: JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
   grid: { half: 150, dx: 1, center: 'radar', bw: 1.0, toGround: false }, tempLines: [0, -5, -10, -20], rings: true, showSites: true, showCounty: true,
-  nexSite: 'KMLB', maxFrames: 40, tool: 'pan', cursor: null, live: false, wsrWindow: 8, opacity: 255, memMB: 900
+  nexSite: 'KMLB', maxFrames: 40, tool: 'pan', cursor: null, connErr: null, profTried: false, live: false, wsrWindow: 8, opacity: 255, memMB: 900
 };
 RWC.BUILTIN.forEach(function (c) { S.cts[c.id] = c; });
 
@@ -86,6 +86,8 @@ function fieldOf(srcId, frame, def) {
   return frame._fields[key] || (frame._fields[key] = { G: G, data: RW.product(G, def, S.prof) });
 }
 function prepTraj() { S.trajP = S.traj ? RW.prepTrajectory(S.traj, S.origin, 0.25, S.llcc.zMax) : null; S.trajV++; S.llccRes = null; }
+/** top (and bottom) of the scanned volume above a map point, km MSL, for a radar frame */
+function covTop(frame, x, y) { var tl = RW.refTilts(frame); if (!tl.length) return null; var r = rxy(frame), s = Math.hypot(x - r[0], y - r[1]), hb = s * S.grid.bw * D2R / 2, h0 = (frame.alt || 0) / 1000; return { top: RW.beamAt(s, tl[tl.length - 1].el, h0).h + hb, bot: Math.max(0, RW.beamAt(s, tl[0].el, h0).h - hb), el: tl[tl.length - 1].el }; }
 function tiltsFor(frame, def) { return def.mom === 'REF' ? RW.refTilts(frame) : RW.tilts(frame, def.mom); }
 function slantLUT(sw, h0) { if (sw.slut) return sw.slut; var n = 2400, a = new Float32Array(n); for (var i = 0; i < n; i++) a[i] = RW.beamAt(i * 0.25, sw.el, h0).r; return (sw.slut = a); }
 

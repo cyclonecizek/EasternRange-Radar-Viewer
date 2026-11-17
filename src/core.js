@@ -60,13 +60,13 @@ var RW = (function () {
     files.forEach(function (f, idx) {
       var nEl = {}; f.sweeps.forEach(function (s) { nEl[Math.round(s.el * 10)] = 1; });
       var fr = { time: f.time, site: f.site, lat: f.lat, lon: f.lon, alt: f.alt, vcp: f.vcp, partial: false, sweeps: f.sweeps, key: f.key };
-      if (Object.keys(nEl).length < 3) { // partial file: pool the most recent sweep at every elevation inside the window
-        var pool = {}, tEnd = f.sweeps[f.sweeps.length - 1].t1 || f.time;
+      { // pool the most recent sweep at every elevation inside the window (handles per-tilt files and volumes split across files)
+        var pool = {}, tEnd = f.sweeps[f.sweeps.length - 1].t1 || f.time, used = {};
         for (var j = idx; j >= 0 && files[j].time >= f.time - win; j--) files[j].sweeps.forEach(function (s) {
-          var k = Math.round(s.el * 10) + '|' + Object.keys(s.mom).sort().join(''); if (!pool[k] && s.t0 <= tEnd) pool[k] = s;
+          var k = Math.round(s.el * 10) + '|' + Object.keys(s.mom).sort().join(''); if (!pool[k] && s.t0 <= tEnd) { pool[k] = s; used[j] = 1; }
         });
         fr.sweeps = Object.keys(pool).map(function (k) { return pool[k]; }).sort(function (a, b) { return a.el - b.el || a.t0 - b.t0; });
-        fr.partial = true;
+        fr.partial = Object.keys(used).length > 1; fr.nfiles = Object.keys(used).length;
       }
       fr.sweeps.forEach(R.prepSweep);
       frames.push(fr);
@@ -140,7 +140,7 @@ var RW = (function () {
         var mx = m.r0 + ng * m.dr, sv = null;
         frame.sweeps.forEach(function (s) { if (s !== sw && s.mom.REF && Math.abs(s.el - sw.el) < 0.25) { var r2 = s.mom.REF.r0 + s.mom.REF.ng * s.mom.REF.dr; if (r2 > mx + 20) sv = s; } });
         if (sv) for (ri = 0; ri < n; ri++) { rj = R.radialAt(sv, sw.az[ri]); if (rj < 0) continue; for (g = 0; g < ng; g++) { p = ri * ng + g; if (raw[p] > 1 && isNaN(R.sample(sv, 'REF', rj, m.r0 + g * m.dr, false)) && isNaN(R.sample(sv, 'REF', rj, m.r0 + (g + 2) * m.dr, false)) && isNaN(R.sample(sv, 'REF', rj, m.r0 + (g - 2) * m.dr, false))) mask[p] |= B.trip2; } }
-        var vs = sw.mom.VEL ? sw : null, vm = vs && vs.mom.VEL, nyq = sw.nyq || 0;
+        var vs = sw.mom.VEL ? sw : null, vm = vs && vs.mom.VEL, nyq = sw.nyq || 0; if (vm) { var rmx = 0; for (p = 0; p < vm.raw.length; p += 7) if (vm.raw[p] > rmx) rmx = vm.raw[p]; nyq = Math.max(nyq, (rmx - vm.offset) / vm.scale); }
         if (vm && nyq > 0) for (ri = 0; ri < n; ri++) for (g = 3; g < ng - 3; g++) {
           p = ri * ng + g; if (raw[p] < 2) continue;
           var gv = Math.round((m.r0 + g * m.dr - vm.r0) / vm.dr); if (gv < 3 || gv >= vm.ng - 3) continue;

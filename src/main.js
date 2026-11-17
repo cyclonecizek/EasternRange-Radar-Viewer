@@ -1,8 +1,9 @@
 /* ===== main.js : wiring ===== */
 (function () {
-  loadSettings(); buildBase(); buildTabs(); renderTab(); buildPanels(); updateTimebar();
+  loadSettings(); buildBase(); buildTabs(); renderTab(); buildPanels(); updateTimebar(); updateWelcome();
+  $('helpbtn').addEventListener('click', function () { showHelp(true); });
   $('npanels').value = S.npanels; $('npanels').addEventListener('change', function () { S.npanels = +this.value; buildPanels(); drawXS(); });
-  $('toolxs').addEventListener('click', function () { setTool(S.tool === 'xs' ? 'pan' : 'xs'); if (S.tool === 'xs') toast('Drag a line on the map to cut a cross-section'); });
+  $('toolxs').addEventListener('click', function () { setTool(S.tool === 'xs' ? 'pan' : 'xs'); if (S.tool === 'xs') toast('Now drag a line across the map'); });
   $('xsbtn').addEventListener('click', function () { openXS(!S.xs.open); }); $('xsclose').addEventListener('click', function () { openXS(false); });
   $('xsmode').addEventListener('change', function () { S.xs.mode = this.value; invalidate(); drawXS(); });
   $('xsinterp').addEventListener('change', function () { S.xs.interp = this.value === '1'; drawXS(); });
@@ -14,7 +15,7 @@
   window.addEventListener('resize', function () { invalidate(); drawXS(); });
   window.addEventListener('keydown', function (e) {
     if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
-    if (e.key === 'ArrowLeft') stepTime(-1); else if (e.key === 'ArrowRight') stepTime(1); else if (e.key === ' ') { togglePlay(); e.preventDefault(); } else if (e.key === 'Escape') { View3D.hide(); setTool('pan'); }
+    if (e.key === 'ArrowLeft') stepTime(-1); else if (e.key === 'ArrowRight') stepTime(1); else if (e.key === ' ') { togglePlay(); e.preventDefault(); } else if (e.key === 'Escape') { View3D.hide(); setTool('pan'); showHelp(false); }
     else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { var P = S.panels[0], ui = panelsUI[0], n = ui.tilt.options.length; if (n) { P.tilt = Math.max(0, Math.min(n - 1, P.tilt + (e.key === 'ArrowUp' ? 1 : -1))); S.panels.forEach(function (q, i) { if (i && q.src === P.src) q.tilt = P.tilt; }); panelsUI.forEach(function (u) { fillTilt(u, S.panels[u.pi]); }); invalidate(); e.preventDefault(); } }
   });
   ['dragover', 'dragenter'].forEach(function (ev) { window.addEventListener(ev, function (e) { e.preventDefault(); document.body.classList.add('dragging'); }); });

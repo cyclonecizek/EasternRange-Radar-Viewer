@@ -86,7 +86,7 @@ function drawLegend(ui) {
   if (!m || !m.frame) { ui.info.textContent = 'no data near ' + (S.time ? fmtT(S.time) : 'the selected time'); return; }
   if (m.none) { ui.info.textContent = 'product not available in this frame'; return; }
   var f = m.frame, bits = [f.site || S.sources[P.src].label, fmtT(m.sweep ? m.sweep.t0 : f.time, true)];
-  if (m.sweep) bits.push(m.sweep.el.toFixed(2) + '°'); if (f.vcp) bits.push('VCP ' + f.vcp); if (f.partial) bits.push('assembled from ' + f.sweeps.length + ' sweeps'); if (m.sub) bits.push(m.sub);
+  if (m.sweep) bits.push(m.sweep.el.toFixed(2) + '°'); if (f.vcp) bits.push('VCP ' + f.vcp); if (f.partial) bits.push('assembled from ' + f.nfiles + ' files'); if (m.sub) bits.push(m.sub);
   var dt = Math.round((f.time - S.time) / 1000); if (Math.abs(dt) > 45) bits.push('Δt ' + (dt > 0 ? '+' : '') + Math.round(dt / 60) + ' min');
   ui.info.textContent = bits.join(' · ');
   var ct = m.ct, s = ct.stops, bar = h('div', { class: 'cbar', style: 'background:' + RWC.css(ct) }), ticks = h('div', { class: 'cticks' }), min = s[0].v, max = s[s.length - 1].v, n = s.length, every = Math.ceil(n / 9);
@@ -134,6 +134,8 @@ function drawXS() {
     var du = S.units.d === 'nmi' ? NMI : 1, span = (d1 - d0) / du, ds = span > 150 ? 25 : span > 60 ? 10 : span > 25 ? 5 : span > 10 ? 2 : 1; c.textAlign = 'center';
     for (var d = Math.ceil(d0 / du / ds) * ds; d * du <= d1; d += ds) { c.beginPath(); c.moveTo(X(d * du), mt); c.lineTo(X(d * du), mt + ph); c.stroke(); c.fillText(String(d), X(d * du), mt + ph + 10); }
     c.textAlign = 'left'; S.tempLines.forEach(function (T) { var zt = RW.heightOf(S.prof, T); if (!(zt < top)) return; c.strokeStyle = T === 0 ? 'rgba(255,120,120,.95)' : 'rgba(120,200,255,.85)'; c.setLineDash(T === 0 ? [] : [5, 4]); c.beginPath(); c.moveTo(ml, Y(zt)); c.lineTo(ml + pw, Y(zt)); c.stroke(); c.setLineDash([]); c.fillStyle = T === 0 ? '#ff8a8a' : '#8fd0ff'; c.fillText((T > 0 ? '+' : '') + T + '°C', ml + pw + 4, Y(zt)); });
+    var cfr = S.sources[show[i].src].kind === 'radar' && curFrame(show[i].src);
+    if (cfr) { c.strokeStyle = 'rgba(255,255,255,.55)'; c.setLineDash([2, 4]); c.beginPath(); var lastY = 0, lastX = 0; for (var xi = 0; xi <= pw; xi += 6) { var pf = xi / pw * (path.length - 1), pk = Math.min(path.length - 2, pf | 0), pt2 = pf - pk, cvv = covTop(cfr, path[pk].x + pt2 * (path[pk + 1].x - path[pk].x), path[pk].y + pt2 * (path[pk + 1].y - path[pk].y)); if (!cvv) break; lastX = ml + xi; lastY = Y(Math.min(cvv.top, top * 1.2)); if (xi) c.lineTo(lastX, lastY); else c.moveTo(lastX, lastY); } c.stroke(); c.setLineDash([]); if (lastY > mt + 12) { c.fillStyle = 'rgba(255,255,255,.7)'; c.textAlign = 'right'; c.fillText('top of scan', ml + pw - 4, lastY - 8); c.textAlign = 'left'; } }
     if (S.trajP && S.trajP.length > 1) {
       var pts = [];
       if (S.xs.mode === 'traj') S.trajP.forEach(function (q) { pts.push([q.g, q.z]); });

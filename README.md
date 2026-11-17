@@ -75,7 +75,9 @@ Tested: the Level II decoder (byte-exact bzip2 against the system tool) on publi
 file assembly, two-radar comparison and the MRMS path against a local mock; GRIB2 PNG decoding against
 eccodes-written files; all UI tabs, cross-sections and 3-D in headless Chromium.
 
-Not yet tested: real KPSB files, the live WSR API from a browser, live AWS NEXRAD / MRMS fetches, and the
+Also tested on one real KPSB file (17 Nov 2026 1910Z: 9 tilts 0.5 to 6.4 deg, 1 deg x 252 m, six moments).
+
+Not yet tested: the live WSR API from a browser, multi-file loops, live AWS NEXRAD / MRMS fetches, and the
 Open-Meteo profile fetch.
 
 ## Rebuild

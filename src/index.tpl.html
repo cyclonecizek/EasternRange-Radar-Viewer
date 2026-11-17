@@ -34,21 +34,30 @@ main{grid-row:2;display:flex;flex-direction:column;min-width:0;min-height:0}
 footer{grid-column:1/3;padding:3px 12px;background:var(--pane);border-top:1px solid var(--line);color:var(--mut);font-size:12px;min-height:22px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
 #toasts{position:fixed;right:14px;bottom:36px;display:flex;flex-direction:column;gap:6px;z-index:50;max-width:440px}.toast{background:#1d2937;border:1px solid #34485e;border-left:4px solid var(--acc);border-radius:6px;padding:8px 12px;white-space:pre-wrap;box-shadow:0 6px 20px rgba(0,0,0,.5)}.toast.err{border-left-color:var(--bad)}
 #v3d{position:fixed;inset:0;background:#070a0e;z-index:40;display:flex}#v3dcanvas{flex:1;min-width:0;width:100%;height:100%;display:block}#v3dside{width:290px;background:var(--pane);border-left:1px solid var(--line);padding:10px;overflow:auto}#v3dinfo{position:absolute;left:12px;top:10px;background:rgba(8,12,17,.7);padding:6px 10px;border-radius:6px}#v3dinfo .lv{display:inline-flex;align-items:center;gap:5px;margin-right:12px}#v3dinfo i{width:12px;height:12px;border-radius:2px;display:inline-block}
+
+#setup{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:8px 8px 4px}.pill{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:6px;text-align:left;padding:5px 8px;border-radius:7px;min-width:0}.pill span{grid-column:1/3}.pill i{flex:none;width:9px;height:9px;border-radius:50%;background:#55667a}.pill b{flex:none;font-size:12px}.pill span{color:var(--mut);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pill.ok i{background:#35c97a}.pill.warn i{background:#f2b632}.pill.bad i{background:#ff6161}.pill.warn{border-color:#57461a}.pill.bad{border-color:#6a2626}
+#tabs .brk{flex-basis:100%;height:0}#tabs button.flow{flex:1;font-weight:600;color:var(--tx);border-radius:5px;border-bottom:1px solid var(--line);margin-bottom:3px;white-space:nowrap;padding:5px 4px}#tabs button.flow.on{background:var(--pri);border-color:var(--pri);color:#fff}#tabs button.tool{flex:1}
+#mapwrap{position:relative;flex:1;display:flex;min-height:0}#mapwrap .maps{flex:1}#welcome,#help{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(7,10,14,.72);z-index:5;padding:20px}#help{position:fixed;z-index:60}
+.card{background:var(--pane);border:1px solid #2c3b4e;border-radius:12px;padding:22px 26px;max-width:560px;box-shadow:0 18px 50px rgba(0,0,0,.55)}.card.wide{max-width:680px;max-height:86vh;overflow:auto}.card h2{margin:0 0 6px;font-size:20px}.card p{margin:8px 0}.card .mut{color:var(--mut);font-size:12.5px}.card a{color:var(--acc)}.row.big button{padding:8px 14px;font-size:14px}
+.card dl{margin:4px 0 10px;display:grid;grid-template-columns:150px 1fr;gap:6px 14px}.card dt{font-weight:600}.card dd{margin:0;color:#c3d0de}
+.connbox{background:#2a1a12;border:1px solid #6a3a22;border-radius:8px;padding:10px 12px;margin:10px 0;text-align:left}.connbox p{margin:6px 0;color:#f0cdb8}.connbox small{color:var(--mut)}.btnlink{color:var(--acc);padding:4px 6px}
+#helpbtn{border-radius:50%;width:28px;padding:4px 0;font-weight:700}
 </style></head>
 <body>
 <div id="app">
 <header>
   <div class="brand">LLCC Radar Workbench<span class="tag">EXPERIMENTAL · NOT FOR OPERATIONAL DECISIONS</span></div>
   <div id="timebar"><button id="prev" title="Previous frame (←)">◀</button><button id="play" title="Play / pause (space)">▶</button><button id="next" title="Next frame (→)">▶|</button><input id="tslider" type="range" min="0" max="0" value="0"><span id="tlabel">no data loaded</span><label class="chk" style="margin:0"><input type="checkbox" id="live">Live</label></div>
-  <div class="tools"><select id="npanels" title="Number of map panels"><option value="1">1 panel</option><option value="2">2 panels</option><option value="4">4 panels</option></select><button id="toolxs" title="Drag a line on the map (or Shift-drag any time)">Cross-section</button><button id="xsbtn" title="Show / hide the cross-section drawer">Drawer</button><button id="btn3d" class="pri">3-D</button></div>
+  <div class="tools"><select id="npanels" title="Number of map panels"><option value="1">1 panel</option><option value="2">2 panels</option><option value="4">4 panels</option></select><button id="toolxs" title="Then drag a line on the map. Shift-drag also works at any time.">Draw cross-section</button><button id="xsbtn" title="Show or hide the cross-section panel under the map">Section panel</button><button id="btn3d" class="pri" title="Open the 3-D volume view">3-D view</button><button id="helpbtn" title="Quick guide">?</button></div>
 </header>
-<aside><nav id="tabs"></nav><div id="tabbody"></div></aside>
-<main><div id="maps" class="maps n1"></div>
+<aside><div id="setup"></div><nav id="tabs"></nav><div id="tabbody"></div></aside>
+<main><div id="mapwrap"><div id="maps" class="maps n1"></div><div id="welcome"></div></div>
   <div id="xsec" class="hidden"><div id="xshead"><b>Vertical cross-section</b><select id="xsmode"><option value="line">Line A → B</option><option value="traj">Along flight path</option></select><select id="xsinterp"><option value="1">Interpolated between tilts</option><option value="0">Beams only (shows scan gaps)</option></select><label>top <input id="xstop" type="number" value="60" style="width:64px"> kft</label><button id="xsclose">✕</button></div><div id="xsbody"></div></div>
 </main>
 <footer id="status"></footer>
 </div>
 <div id="v3d" class="hidden"><canvas id="v3dcanvas"></canvas><div id="v3dinfo"></div><div id="v3dside"><h3>3-D view</h3><div id="v3dctl"></div></div></div>
+<div id="help" class="hidden"></div>
 <div id="toasts"></div>
 <script>/*THREE*/</script>
 <script id="decoder-src">/*DECODER*/</script>

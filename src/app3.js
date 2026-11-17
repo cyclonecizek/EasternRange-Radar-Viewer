@@ -21,7 +21,8 @@ async function ingest(u8, hint) {
 function afterData(jumpLatest) {
   ['wsr', 'nex'].forEach(rebuildFrames);
   var pf = primarySrc().frames; if (pf.length && (jumpLatest || !S.time || !frameAt(primarySrc().id, S.time, 0.01))) S.time = pf[pf.length - 1].time;
-  refreshSelectors(); updateTimebar(); invalidate(); drawXS(); scheduleLLCC(); renderTab();
+  refreshSelectors(); updateTimebar(); invalidate(); drawXS(); scheduleLLCC(); renderTab(); updateWelcome();
+  if (pf.length && S.prof.isDefault && !S.profTried) { S.profTried = true; profileFetch('best_match', true); }
 }
 async function ingestFiles(fileList) {
   var n = 0, errs = [];
@@ -41,18 +42,18 @@ function corsHelp(e) { return e.cors ? e.message + '. The browser was refused a 
 async function pool(items, n, fn) { var i = 0; async function run() { while (i < items.length) { var k = i++; await fn(items[k], k); } } var a = []; for (var j = 0; j < n; j++) a.push(run()); await Promise.all(a); }
 async function wsrLoadRange(t0, t1, quiet) {
   status('Listing WSR files …'); var rows;
-  try { rows = await RWIO.wsrRange(t0, t1); } catch (e) { status(''); if (!quiet) toast('WSR API: ' + corsHelp(e), 'err'); return 0; }
+  try { rows = await RWIO.wsrRange(t0, t1); S.connErr = null; } catch (e) { status(''); if (!quiet) connFail(e); return 0; }
   var have = {}; S.sources.wsr.files.forEach(function (f) { have[Math.round(f.headerTime / 1000)] = 1; have[Math.round(f.time / 1000)] = 1; });
   rows = rows.filter(function (r) { return !have[Math.round(r.time / 1000)]; }); if (rows.length > 400) rows = rows.slice(-400);
   var done = 0, ok = 0, lastErr = null;
   await pool(rows, 3, async function (r) { try { if (await ingest(await RWIO.wsrFile(r), 'wsr')) ok++; } catch (e) { lastErr = e; } status('WSR: ' + (++done) + ' / ' + rows.length + ' files'); });
-  status(''); if (lastErr && !ok && !quiet) toast('WSR download: ' + corsHelp(lastErr), 'err'); if (ok) afterData(true); else if (!quiet && !lastErr) toast(rows.length ? 'No new files decoded' : 'No new WSR files in that window');
+  status(''); if (lastErr && !ok && !quiet) connFail(lastErr); if (ok) afterData(true); else if (!quiet && !lastErr) toast(rows.length ? 'No new files decoded' : 'No new WSR files in that window');
   return ok;
 }
 async function wsrLoadLatest() {
   status('Requesting latest WSR file …');
-  try { var u8 = await RWIO.wsrFile(null), v = await ingest(u8, 'wsr'); status(''); afterData(true); var fr = S.sources.wsr.frames; if (v && fr.length && fr[fr.length - 1].partial && fr[fr.length - 1].sweeps.length < 4) { toast('Files hold one or two tilts each; pulling the last ' + S.wsrWindow + ' min to assemble a volume'); await wsrLoadRange(v.time - S.wsrWindow * 60000, v.time + 1000, true); } else if (v) toast('Loaded ' + v.site + ' ' + fmtT(v.time, true)); }
-  catch (e) { status(''); toast('WSR API: ' + corsHelp(e), 'err'); }
+  try { var u8 = await RWIO.wsrFile(null), v = await ingest(u8, 'wsr'); status(''); S.connErr = null; afterData(true); var fr = S.sources.wsr.frames; if (v && fr.length && fr[fr.length - 1].partial && fr[fr.length - 1].sweeps.length < 4) { toast('Files hold one or two tilts each; pulling the last ' + S.wsrWindow + ' min to assemble a volume'); await wsrLoadRange(v.time - S.wsrWindow * 60000, v.time + 1000, true); } else if (v) toast('Loaded ' + v.site + ' ' + fmtT(v.time, true)); }
+  catch (e) { status(''); connFail(e); }
 }
 var liveTimer = null;
 function setLive(on) { S.live = on; clearInterval(liveTimer); if (on) { var tick = function () { var f = S.sources.wsr.files, last = f.length ? f[f.length - 1].time : Date.now() - 10 * 60000; wsrLoadRange(Math.max(last + 1000, Date.now() - 30 * 60000), Date.now() + 60000, true); }; tick(); liveTimer = setInterval(tick, 60000); } $('live').checked = on; }
@@ -70,10 +71,10 @@ async function mrmsFetch(t) {
   try { status('MRMS: finding mosaic …'); var G = await RWIO.mrmsVolume(t, gridSpecNow(), S.origin, RW.xy2ll, RW.enc, function (a, b) { status('MRMS 3-D mosaic: level ' + a + ' / ' + b); }); var fr = { time: G.time, site: 'MRMS', key: 'mrms_' + G.time, grid: G, lat: NaN, lon: NaN }; var src = S.sources.mrms; src.frames = src.frames.filter(function (f) { return f.key !== fr.key; }); src.frames.push(fr); src.frames.sort(function (a, b) { return a.time - b.time; }); while (src.frames.length > 12) src.frames.shift(); status(''); toast('MRMS mosaic ' + fmtT(G.time, true) + (G.missingLevels ? ' (' + G.missingLevels + ' levels missing)' : '')); afterData(false); }
   catch (e) { status(''); toast('MRMS: ' + corsHelp(e), 'err'); }
 }
-async function profileFetch(model) {
+async function profileFetch(model, quiet) {
   var t = S.time || Date.now(), ll = S.traj ? S.traj.pts[0] : S.origin;
   try { status('Fetching model temperature profile …'); S.prof = await RWIO.fetchProfile(ll.lat, ll.lon, t, model); S.profV++; status(''); toast('Temperature profile: ' + S.prof.source); invalidate(); drawXS(); scheduleLLCC(); renderTab(); }
-  catch (e) { status(''); toast('Temperature profile: ' + corsHelp(e), 'err'); }
+  catch (e) { status(''); if (!quiet) toast('Temperature profile: ' + e.message, 'err'); renderSetup(); }
 }
 function loadTrajText(txt, name) { try { var t = RW.parseTrajectory(txt); S.traj = t; S.trajName = name; prepTraj(); toast('Flight path loaded: ' + t.pts.length + ' points' + (t.notes.length ? ' · ' + t.notes.join('; ') : '')); invalidate(); drawXS(); scheduleLLCC(); renderTab(); } catch (e) { toast('Flight path: ' + e.message, 'err'); } }
 
@@ -91,12 +92,13 @@ function scheduleLLCC() { clearTimeout(llccTimer); llccTimer = setTimeout(runLLC
 function runLLCC() {
   var P = S.panels[0], fr = curFrame(P.src); S.llccRes = null;
   if (S.trajP && S.trajP.length > 1 && fr) { var G = gridOf(P.src, fr); if (G) { var t0 = performance.now(); S.llccRes = RW.evalLLCC(G, S.prof, S.trajP, S.llcc); S.llccRes.ms = performance.now() - t0; S.llccRes.frame = fr; S.llccRes.src = P.src; } }
-  panelsUI.forEach(drawOverlay); if (curTab === 'llcc') renderTab();
+  panelsUI.forEach(drawOverlay); if (curTab === 'llcc') renderTab(); else renderSetup();
 }
 function chip(kind, text) { return h('span', { class: 'chip ' + kind, text: text }); }
 function llccRows(E) {
   var L = S.llcc, rows = [], nm = function (d) { return isFinite(d) ? (d / NMI).toFixed(1) + ' nmi' : 'none within search'; };
   var thr = L.cloudThr + ' dBZ';
+  if (S.sources[E.src].kind === 'radar' && S.trajP) { var cut = null, c0 = covTop(E.frame, S.trajP[0].x, S.trajP[0].y); for (var i = 0; i < S.trajP.length && !cut; i++) { var q = S.trajP[i], cv = covTop(E.frame, q.x, q.y); if (cv && q.z > cv.top) cut = { z: q.z, T: RW.tempAt(S.prof, q.z) }; } if (c0) rows.push({ rule: 'Radar coverage', item: 'Scan reaches the flight path at all altitudes checked', val: cut ? 'NO · highest tilt is ' + c0.el.toFixed(1) + '°, so the scan tops out near ' + fmtH(c0.top) + ' over the pad. The path above ' + fmtH(cut.z) + ' (' + cut.T.toFixed(0) + ' °C) is not observed, and cloud tops at that height are lower bounds. Every row below only describes what this scan can see.' : 'Yes, up to ' + fmtH(L.zMax), st: cut ? 'warn' : 'ok' }); }
   rows.push({ rule: 'All cloud rules', item: 'Flight path through radar cloud (≥' + thr + ')', val: isFinite(E.through.maxZ) ? 'YES · up to ' + E.through.maxZ.toFixed(0) + ' dBZ at ' + fmtH(E.through.at.z) + ' (' + E.through.at.T.toFixed(0) + ' °C)' : 'No echo on the path', st: isFinite(E.through.maxZ) ? 'bad' : 'ok' });
   var near = isFinite(E.through.maxZ) ? 0 : E.any.d; L.standoffs.forEach(function (s) { rows.push({ rule: 'Anvil / debris standoff', item: 'Radar cloud edge within ' + s + ' nmi (slant)', val: 'nearest ' + nm(near) + (E.any.at ? ' · at ' + fmtH(E.any.at.z) : ''), st: near <= s * NMI ? 'bad' : 'ok' }); });
   E.classes.forEach(function (c) { var d = c.d; if (isFinite(E.through.maxZ) && c.at && d < E.res * 1.5) d = 0; rows.push({ rule: 'Cumulus', item: 'Cloud with top colder than ' + c.T + ' °C ' + (c.nmi ? 'within ' + c.nmi + ' nmi' : 'on the flight path'), val: c.at ? 'nearest ' + nm(d) + ' · top ' + fmtH(c.at.topZ) + ' (' + c.at.topT.toFixed(0) + ' °C)' : 'none within search', st: !c.at ? 'ok' : (c.nmi ? d <= c.nmi * NMI : d <= E.res) ? 'bad' : 'ok' }); });
@@ -110,7 +112,7 @@ function exportPathCSV() { var E = S.llccRes; if (!E) return; var o = ['time_s,a
 function download(name, text) { var a = h('a', { href: URL.createObjectURL(new Blob([text], { type: 'text/plain' })), download: name }); document.body.appendChild(a); a.click(); a.remove(); }
 
 /* ---------- sidebar ---------- */
-var curTab = 'data', TABS = [['data', 'Data'], ['prod', 'Products'], ['color', 'Colours'], ['qc', 'QC'], ['temp', 'Temps'], ['path', 'Flight path'], ['llcc', 'LLCC'], ['set', 'Settings']];
+var curTab = 'data', TABS = [['data', '1 · Radar'], ['temp', '2 · Temps'], ['path', '3 · Flight path'], ['llcc', '4 · LLCC'], ['prod', 'Products'], ['color', 'Colours'], ['qc', 'QC'], ['set', 'Settings']];
 function field(label, input, hint) { return h('label', { class: 'fld' }, [h('span', { text: label }), input, hint ? h('small', { text: hint }) : null]); }
 function num(val, on, attrs) { var a = Object.assign({ type: 'number', value: val }, attrs || {}); a.onchange = function (e) { var v = parseFloat(e.target.value); if (isFinite(v)) on(v); }; return h('input', a); }
 function chk(val, on, label) { var i = h('input', { type: 'checkbox' }); i.checked = !!val; i.addEventListener('change', function () { on(i.checked); }); return h('label', { class: 'chk' }, [i, label]); }
@@ -118,17 +120,19 @@ function btn(text, on, cls) { return h('button', { class: cls || '', onclick: on
 function sel(opts, val, on) { var s = h('select', { onchange: function () { on(s.value); } }); opts.forEach(function (o) { s.appendChild(opt(o[0], o[1], String(o[0]) === String(val))); }); return s; }
 function sec(title, kids) { return h('section', {}, [h('h3', { text: title })].concat(kids)); }
 function note(t, cls) { return h('p', { class: 'note ' + (cls || ''), html: t }); }
-function buildTabs() { var nav = $('tabs'); nav.innerHTML = ''; TABS.forEach(function (t) { nav.appendChild(h('button', { class: curTab === t[0] ? 'on' : '', text: t[1], onclick: function () { curTab = t[0]; buildTabs(); renderTab(); } })); }); }
+function buildTabs() { var nav = $('tabs'); nav.innerHTML = ''; TABS.forEach(function (t, i) { if (i === 4) nav.appendChild(h('span', { class: 'brk' })); nav.appendChild(h('button', { class: (curTab === t[0] ? 'on ' : '') + (i < 4 ? 'flow' : 'tool'), text: t[1], onclick: function () { goTab(t[0]); } })); }); }
+function goTab(t) { curTab = t; buildTabs(); renderTab(); }
 function qcChanged() { S.qc.version++; S.qc.preset = 'custom'; saveSettings(); invalidate(); drawXS(); scheduleLLCC(); }
-function renderTab() { var b = $('tabbody'); b.innerHTML = ''; ({ data: tabData, prod: tabProd, color: tabColor, qc: tabQC, temp: tabTemp, path: tabPath, llcc: tabLLCC, set: tabSet })[curTab](b); }
+function renderTab() { renderSetup(); var b = $('tabbody'); b.innerHTML = ''; ({ data: tabData, prod: tabProd, color: tabColor, qc: tabQC, temp: tabTemp, path: tabPath, llcc: tabLLCC, set: tabSet })[curTab](b); }
 
 function tabData(b) {
   var W = S.sources.wsr, N = S.sources.nex, M = S.sources.mrms, mins = h('select', {}, [[15, '15 min'], [30, '30 min'], [60, '1 hour'], [120, '2 hours']].map(function (o) { return opt(o[0], o[1], o[0] === 30); }));
   var t0 = h('input', { type: 'datetime-local', step: 60 }), dur = h('select', {}, [[15, '15 min'], [30, '30 min'], [60, '1 h'], [120, '2 h'], [240, '4 h']].map(function (o) { return opt(o[0], o[1], o[0] === 30); }));
+  if (S.connErr && $('welcome').classList.contains('hidden')) b.appendChild(connBox());
   b.appendChild(sec('WSR (RAD API)', [
     h('div', { class: 'row' }, [btn('Load latest', wsrLoadLatest, 'pri'), btn('Load last', function () { wsrLoadRange(Date.now() - mins.value * 60000, Date.now() + 60000); }), mins]),
     field('Archive: start (UTC)', t0), h('div', { class: 'row' }, [dur, btn('Load window', function () { if (!t0.value) return toast('Pick a start time (UTC)', 'err'); var s = RWIO.parseTime(t0.value.length === 16 ? t0.value + ':00' : t0.value); wsrLoadRange(s, s + dur.value * 60000); })]),
-    note(W.files.length ? W.files.length + ' files · ' + W.frames.length + ' frames · ' + fmtT(W.files[0].time) + ' → ' + fmtT(W.files[W.files.length - 1].time) + (W.frames.length && W.frames[W.frames.length - 1].partial ? '<br>Files are partial volumes; frames are assembled from the latest sweep at each elevation within ' + S.wsrWindow + ' min.' : '') : 'Nothing loaded yet.')
+    note(W.files.length ? W.files.length + ' files · ' + W.frames.length + ' frames · ' + fmtT(W.files[0].time) + ' → ' + fmtT(W.files[W.files.length - 1].time) + (W.frames.length && W.frames[W.frames.length - 1].partial ? '<br>Volumes span more than one file; each frame uses the latest sweep at each elevation within ' + S.wsrWindow + ' min.' : '') : 'Nothing loaded yet.')
   ]));
   var fi = h('input', { type: 'file', multiple: '', onchange: function () { ingestFiles(fi.files); } });
   b.appendChild(sec('Local files', [h('div', { class: 'drop', id: 'dropzone' }, ['Drop Level II files, a range-download .zip, a flight-path CSV or a .pal colour table anywhere on the page, or ', fi])]));
@@ -229,4 +233,41 @@ function tabSet(b) {
     chk(S.rings, function (v) { S.rings = v; saveSettings(); invalidate(); }, 'Range rings'), chk(S.showSites, function (v) { S.showSites = v; saveSettings(); invalidate(); }, 'Pads and airfields'), chk(S.showCounty, function (v) { S.showCounty = v; saveSettings(); invalidate(); }, 'County lines')]));
   b.appendChild(sec('Data handling', [field('Volume assembly window (min)', num(S.wsrWindow, function (v) { S.wsrWindow = v; saveSettings(); afterData(); }, { min: 1, max: 30 }), 'When a file holds only one or two tilts, a frame is built from the newest sweep at each elevation inside this window.'), field('Memory budget for radar files (MB)', num(S.memMB || 900, function (v) { S.memMB = v; saveSettings(); }, { min: 200, max: 6000, step: 100 }))]));
   b.appendChild(sec('About', [note('LLCC Radar Workbench · experimental. Keys: ←/→ step time, ↑/↓ change tilt, space play/pause, Shift-drag draws a cross-section. All processing happens in this browser.')]));
+}
+
+/* ---------- guidance: setup strip, welcome card, connection help, help dialog ---------- */
+function connFail(e) { S.connErr = e.cors ? 'cors' : e.message; updateWelcome(); if (curTab === 'data') renderTab(); else toast('Could not load WSR data. See the Radar tab.', 'err'); }
+function connBox() {
+  var cors = S.connErr === 'cors', prox = h('input', { type: 'text', value: RWIO.cfg.proxy, placeholder: 'https://wsr-relay.YOURNAME.workers.dev/?url=' });
+  return h('div', { class: 'connbox' }, [h('b', { text: cors ? 'The browser was not allowed to reach the WSR API.' : 'The WSR API returned an error.' }), h('p', { text: cors ? 'This is expected the first time on a new computer. Either paste your relay address below (one-time setup), or download a file and drop it on the page.' : S.connErr }),
+    cors ? field('Relay address', prox) : null,
+    h('div', { class: 'row' }, [cors ? btn('Save and retry', function () { var v = prox.value.trim(); if (v && !/[?&]url=$/.test(v)) v = v.replace(/\/+$/, '') + '/?url='; RWIO.cfg.proxy = v; saveSettings(); wsrLoadLatest(); }, 'pri') : btn('Retry', wsrLoadLatest, 'pri'), h('a', { class: 'btnlink', href: RWIO.cfg.wsrBase + '/wsr/latest/download', target: '_blank', rel: 'noopener', text: 'Download latest file' })]),
+    cors ? h('small', { text: 'No relay yet? The repo has relay/worker.js and the README has the five-minute Cloudflare steps.' }) : null]);
+}
+function renderSetup() {
+  var el = $('setup'); if (!el) return; el.innerHTML = '';
+  function pill(kind, label, text, on) { el.appendChild(h('button', { class: 'pill ' + kind, onclick: on, title: 'Click to open' }, [h('i'), h('b', { text: label }), h('span', { text: text })])); }
+  var pf = primarySrc().frames.length ? (curFrame(primarySrc().id) || primarySrc().frames[0]) : null;
+  pill(pf ? 'ok' : S.connErr ? 'bad' : 'todo', 'Radar', pf ? (pf.site || 'loaded') + ' ' + fmtT(pf.time).slice(11) : S.connErr ? 'connection problem' : 'not loaded', function () { goTab('data'); });
+  pill(S.prof.isDefault ? 'warn' : 'ok', 'Temps', S.prof.isDefault ? 'placeholder: click to fetch' : '0 °C at ' + fmtH(RW.heightOf(S.prof, 0)), function () { if (S.prof.isDefault) profileFetch('best_match'); goTab('temp'); });
+  pill(S.traj ? 'ok' : 'todo', 'Flight path', S.traj ? (S.trajName || 'loaded') : 'none: click to add', function () { goTab('path'); });
+  var E = S.llccRes, n = { bad: 0, warn: 0 }; if (E) llccRows(E).forEach(function (r) { if (n[r.st] != null) n[r.st]++; });
+  pill(!E ? 'todo' : n.bad ? 'bad' : n.warn ? 'warn' : 'ok', 'LLCC', !E ? 'needs radar + flight path' : n.bad || n.warn ? (n.bad ? n.bad + ' inside' : '') + (n.bad && n.warn ? ', ' : '') + (n.warn ? n.warn + ' to check' : '') : 'clear by radar', function () { goTab('llcc'); });
+}
+function updateWelcome() {
+  var w = $('welcome'), any = Object.keys(S.sources).some(function (k) { return S.sources[k].frames.length; }); w.classList.toggle('hidden', any); if (any) return; w.innerHTML = '';
+  var fi = h('input', { type: 'file', multiple: '', style: 'display:none', onchange: function () { ingestFiles(fi.files); } });
+  w.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Load radar to begin' }), h('p', { text: 'Pull the newest WSR volume, a recent loop, or open files you already have.' }),
+    h('div', { class: 'row big' }, [btn('Load latest volume', wsrLoadLatest, 'pri'), btn('Load last 30 minutes', function () { wsrLoadRange(Date.now() - 30 * 60000, Date.now() + 60000); }), btn('Open files…', function () { fi.click(); }), fi]),
+    h('p', { class: 'mut', text: 'You can also drop Level II files, a range .zip, a flight-path CSV or a .pal colour table anywhere on the page.' }),
+    S.connErr ? connBox() : null,
+    h('p', { class: 'mut' }, ['New here? ', h('a', { href: '#', text: 'Open the quick guide', onclick: function (e) { e.preventDefault(); showHelp(true); } }), '.'])]));
+}
+function showHelp(on) {
+  var el = $('help'); el.classList.toggle('hidden', !on); if (!on || el.firstChild) return;
+  var steps = [['1 · Radar', 'Load the latest WSR volume or a loop. Step through time with the slider or the arrow keys; change tilt with the up and down keys.'], ['2 · Temps', 'A model temperature profile is fetched automatically. Check the 0, −10 and −20 °C heights, or paste a sounding.'], ['3 · Flight path', 'Load a trajectory file (time, lat, lon, altitude) or generate a notional one. Standoff rings appear on the map.'], ['4 · LLCC', 'Read the radar evidence table. The first row tells you how high the scan actually reaches over the pad.']];
+  var tools = [['Cross-sections', 'Click “Draw cross-section” and drag a line on the map, or hold Shift and drag at any time. Choose “Along flight path” in the section panel for a curtain.'], ['3-D', 'Isosurfaces, isotherm planes and standoff tubes around the current map centre. Drag to orbit, Shift-drag to pan, wheel to zoom.'], ['Compare', 'Choose 2 or 4 panels, then fetch KMLB or MRMS on the Radar tab and pick the source in each panel’s first dropdown.'], ['Products, Colours, QC', 'Build echo tops and CAPPIs at any threshold, edit or import colour tables, and adjust the filters. The setup strip at the top left always shows what is loaded.']];
+  function dl(a) { return h('dl', {}, [].concat.apply([], a.map(function (x) { return [h('dt', { text: x[0] }), h('dd', { text: x[1] })]; }))); }
+  el.appendChild(h('div', { class: 'card wide' }, [h('h2', { text: 'Quick guide' }), h('h3', { text: 'The four steps' }), dl(steps), h('h3', { text: 'Tools' }), dl(tools), h('p', { class: 'mut', text: 'Keys: ← → time · ↑ ↓ tilt · space play/pause · Esc close. This tool is experimental and shows radar evidence only; it does not make a GO / NO-GO call.' }), h('div', { class: 'row' }, [btn('Close', function () { showHelp(false); }, 'pri')])]));
+  el.addEventListener('click', function (e) { if (e.target === el) showHelp(false); });
 }
