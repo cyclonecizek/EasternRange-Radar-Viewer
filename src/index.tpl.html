@@ -42,6 +42,10 @@ footer{grid-column:1/3;padding:3px 12px;background:var(--pane);border-top:1px so
 .card dl{margin:4px 0 10px;display:grid;grid-template-columns:150px 1fr;gap:6px 14px}.card dt{font-weight:600}.card dd{margin:0;color:#c3d0de}
 .connbox{background:#2a1a12;border:1px solid #6a3a22;border-radius:8px;padding:10px 12px;margin:10px 0;text-align:left}.connbox p{margin:6px 0;color:#f0cdb8}.connbox small{color:var(--mut)}.btnlink{color:var(--acc);padding:4px 6px}
 #helpbtn{border-radius:50%;width:28px;padding:4px 0;font-weight:700}
+
+.tilts{display:flex;flex-wrap:wrap;gap:3px;align-items:center;padding:3px 6px 4px;background:var(--pane);border-top:1px solid #18212c}.tilts .tl{color:var(--mut);font-size:11.5px;margin-right:4px}.tilts button{padding:1px 7px;font-size:12px;border-radius:11px;font-variant-numeric:tabular-nums}.tilts button.all{margin-left:6px;border-color:#3a5f86;color:#9fd0ff}
+#tiltgrid{position:fixed;inset:0;z-index:45;background:var(--bg);display:flex;flex-direction:column}#tghead{display:flex;align-items:center;gap:14px;padding:8px 12px;background:var(--pane);border-bottom:1px solid var(--line)}#tghead b{font-size:14px}#tghead .mut{color:var(--mut);font-size:12px;margin-right:auto}
+#tgbody{flex:1;display:grid;gap:2px;background:var(--line);min-height:0;grid-auto-rows:1fr}.tgtile{position:relative;background:#070a0e;min-height:0;min-width:0;overflow:hidden;cursor:pointer}.tgtile.on{outline:2px solid var(--acc);outline-offset:-2px}.tgtile canvas{position:absolute;inset:0;width:100%;height:100%}.tglab{position:absolute;left:6px;top:5px;background:rgba(8,12,17,.8);border-radius:4px;padding:2px 7px;font-size:12px;font-variant-numeric:tabular-nums;pointer-events:none}
 </style></head>
 <body>
 <div id="app">
@@ -57,6 +61,7 @@ footer{grid-column:1/3;padding:3px 12px;background:var(--pane);border-top:1px so
 <footer id="status"></footer>
 </div>
 <div id="v3d" class="hidden"><canvas id="v3dcanvas"></canvas><div id="v3dinfo"></div><div id="v3dside"><h3>3-D view</h3><div id="v3dctl"></div></div></div>
+<div id="tiltgrid" class="hidden"><div id="tghead"><b id="tgtitle"></b><span class="mut">Click a scan to open it · drag to pan · wheel to zoom · ← → step time</span><button id="tgclose" class="pri">Close</button></div><div id="tgbody"></div></div>
 <div id="help" class="hidden"></div>
 <div id="toasts"></div>
 <script>/*THREE*/</script>

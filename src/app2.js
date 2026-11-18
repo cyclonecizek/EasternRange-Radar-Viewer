@@ -11,12 +11,12 @@ function buildPanels() {
     var P = S.panels[pi], ui = { pi: pi };
     ui.src = h('select', { title: 'Data source', onchange: function () { P.src = ui.src.value; fillProd(ui, P); invalidate(); drawXS(); scheduleLLCC(); } });
     ui.prod = h('select', { title: 'Product', onchange: function () { P.prod = ui.prod.value; fillTilt(ui, P); invalidate(); drawXS(); } });
-    ui.tilt = h('select', { title: 'Elevation tilt (↑/↓ keys)', onchange: function () { P.tilt = +ui.tilt.value; invalidate(); } });
+    ui.tilt = h('div', { class: 'tilts' }); ui.ntilt = 0;
     ui.info = h('span', { class: 'pinfo' });
     ui.c1 = h('canvas', { class: 'raster' }); ui.c2 = h('canvas', { class: 'over' });
     ui.leg = h('div', { class: 'legend' }); ui.read = h('div', { class: 'readout' });
     ui.body = h('div', { class: 'pbody' }, [ui.c1, ui.c2, ui.read]);
-    ui.el = h('div', { class: 'panel' }, [h('div', { class: 'phead' }, [ui.src, ui.prod, ui.tilt, ui.info]), ui.body, ui.leg]);
+    ui.el = h('div', { class: 'panel' }, [h('div', { class: 'phead' }, [ui.src, ui.prod, ui.info]), ui.tilt, ui.body, ui.leg]);
     host.appendChild(ui.el); panelsUI.push(ui); fillSrc(ui, P); bindMap(ui);
   })(p);
   invalidate();
@@ -30,10 +30,12 @@ function fillProd(ui, P) {
   if (!prodDef(P.prod) || (!radar && POLAR[P.prod])) P.prod = radar ? 'REF' : 'cref'; ui.prod.value = P.prod; fillTilt(ui, P);
 }
 function fillTilt(ui, P) {
-  var def = prodDef(P.prod), fr = curFrame(P.src); ui.tilt.innerHTML = '';
+  var def = prodDef(P.prod), fr = curFrame(P.src); ui.tilt.innerHTML = ''; ui.ntilt = 0;
   if (!def || !def.polar || !fr || S.sources[P.src].kind !== 'radar') { ui.tilt.style.display = 'none'; return; }
-  var tl = tiltsFor(fr, def); ui.tilt.style.display = ''; if (P.tilt >= tl.length) P.tilt = Math.max(0, tl.length - 1);
-  tl.forEach(function (s, i) { ui.tilt.appendChild(opt(i, s.el.toFixed(1) + '°', i === P.tilt)); });
+  var tl = tiltsFor(fr, def); ui.tilt.style.display = ''; ui.ntilt = tl.length; if (P.tilt >= tl.length) P.tilt = Math.max(0, tl.length - 1);
+  ui.tilt.appendChild(h('span', { class: 'tl', text: 'Elevation' }));
+  tl.forEach(function (s, i) { ui.tilt.appendChild(h('button', { class: i === P.tilt ? 'on' : '', text: s.el.toFixed(1) + '°', title: 'Elevation ' + s.el.toFixed(2) + '° scanned ' + fmtT(s.t0, true).slice(11) + ' (↑/↓ keys step through tilts)', onclick: function () { P.tilt = i; fillTilt(ui, P); invalidate(); } })); });
+  if (tl.length > 1) ui.tilt.appendChild(h('button', { class: 'all', text: 'All tilts', title: 'Show every elevation scan side by side', onclick: function () { TiltGrid.show(ui.pi); } }));
 }
 function refreshSelectors() { panelsUI.forEach(function (ui) { fillSrc(ui, S.panels[ui.pi]); }); }
 
@@ -160,3 +162,45 @@ function bindXS(o) {
   });
   o.c.addEventListener('mouseleave', function () { xsUI.forEach(function (u) { u.hover = null; }); drawXS(); });
 }
+
+/* ---------- all-tilts grid: every elevation scan of one product side by side ---------- */
+var TiltGrid = (function () {
+  var pi = 0, tiles = [], open = false, pend = false;
+  function panel() { return S.panels[pi]; }
+  function show(i) { pi = i; open = true; $('tiltgrid').classList.remove('hidden'); build(); }
+  function hide() { open = false; $('tiltgrid').classList.add('hidden'); }
+  function build() {
+    var P = panel(), def = prodDef(P.prod), fr = curFrame(P.src), host = $('tgbody'); host.innerHTML = ''; tiles = [];
+    if (!fr || !def || !def.polar) { hide(); return; }
+    var tl = tiltsFor(fr, def), n = tl.length, cols = n <= 4 ? 2 : n <= 9 ? 3 : n <= 12 ? 4 : 5; host.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
+    $('tgtitle').textContent = (fr.site || S.sources[P.src].label) + ' · ' + def.label + ' · volume ' + fmtT(fr.time, true) + ' · ' + n + ' elevation scans';
+    tl.forEach(function (sw, i) { var c = h('canvas'), lab = h('div', { class: 'tglab' }), el = h('div', { class: 'tgtile' + (i === P.tilt ? ' on' : '') }, [c, lab]), t = { c: c, lab: lab, i: i, sw: sw, el: el }; host.appendChild(el); tiles.push(t); bind(t); });
+    draw(1);
+  }
+  function draw(step) {
+    if (!open) return; var P = panel(), fr = curFrame(P.src), ref = S.trajP && S.trajP.length ? S.trajP[0] : null;
+    tiles.forEach(function (t) {
+      var W = t.c.clientWidth | 0, H = t.c.clientHeight | 0; if (W < 20 || H < 20) return;
+      if (t.W !== W || t.H !== H) { t.W = W; t.H = H; t.c.width = W; t.c.height = H; t.img = t.c.getContext('2d').createImageData(W, H); t.px = new Uint32Array(t.img.data.buffer); }
+      renderRaster(t.px, W, H, S.view, { src: P.src, prod: P.prod, tilt: t.i }, step); var c = t.c.getContext('2d'); c.putImageData(t.img, 0, 0);
+      var sc = S.view.scale, X = function (x) { return W / 2 + (x - S.view.cx) * sc; }, Y = function (y) { return H / 2 - (y - S.view.cy) * sc; };
+      function poly(a) { c.beginPath(); for (var k = 0; k < a.length; k += 2) { if (k) c.lineTo(X(a[k]), Y(a[k + 1])); else c.moveTo(X(a[k]), Y(a[k + 1])); } c.stroke(); }
+      c.lineWidth = 1; c.strokeStyle = 'rgba(225,235,245,.7)'; baseXY.coast.forEach(poly);
+      if (S.showSites) { c.fillStyle = '#fff'; baseXY.sites.forEach(function (s) { c.fillRect(X(s.x) - 1.5, Y(s.y) - 1.5, 3, 3); }); }
+      if (S.trajP && S.trajP.length > 1) { c.strokeStyle = '#3df0ff'; c.lineWidth = 1.5; c.beginPath(); S.trajP.forEach(function (q, j) { if (j) c.lineTo(X(q.x), Y(q.y)); else c.moveTo(X(q.x), Y(q.y)); }); c.stroke(); }
+      var r = rxy(fr); c.fillStyle = '#ffd24a'; c.beginPath(); c.moveTo(X(r[0]), Y(r[1]) - 5); c.lineTo(X(r[0]) + 4, Y(r[1]) + 3); c.lineTo(X(r[0]) - 4, Y(r[1]) + 3); c.fill();
+      var p = ref || baseXY.sites[3], bh = RW.beamAt(Math.hypot(p.x - r[0], p.y - r[1]), t.sw.el, (fr.alt || 0) / 1000).h;
+      t.lab.textContent = t.sw.el.toFixed(1) + '°  ·  ' + fmtT(t.sw.t0, true).slice(11) + '  ·  beam at ' + (ref ? 'pad' : 'SLC-40') + ' ' + fmtH(bh) + ' (' + RW.tempAt(S.prof, bh).toFixed(0) + ' °C)';
+    });
+  }
+  function later(step) { if (pend) return; pend = true; requestAnimationFrame(function () { pend = false; draw(step); }); }
+  function bind(t) {
+    var down = null, moved = false;
+    t.c.addEventListener('mousedown', function (e) { down = { x: e.clientX, y: e.clientY, cx: S.view.cx, cy: S.view.cy }; moved = false; e.preventDefault(); });
+    t.c.addEventListener('mousemove', function (e) { if (!down) return; var dx = e.clientX - down.x, dy = e.clientY - down.y; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true; if (moved) { S.view.cx = down.cx - dx / S.view.scale; S.view.cy = down.cy + dy / S.view.scale; later(2); } });
+    t.c.addEventListener('mouseup', function () { if (!down) return; down = null; if (moved) { draw(1); invalidate(); } else { panel().tilt = t.i; hide(); fillTilt(panelsUI[pi], panel()); invalidate(); } });
+    t.c.addEventListener('mouseleave', function () { if (down && moved) { down = null; draw(1); invalidate(); } });
+    t.c.addEventListener('wheel', function (e) { e.preventDefault(); var r = t.c.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, kx = S.view.cx + (px - t.W / 2) / S.view.scale, ky = S.view.cy - (py - t.H / 2) / S.view.scale; S.view.scale = Math.max(0.6, Math.min(120, S.view.scale * Math.exp(-e.deltaY * 0.0015))); S.view.cx = kx - (px - t.W / 2) / S.view.scale; S.view.cy = ky + (py - t.H / 2) / S.view.scale; later(1); invalidate(); }, { passive: false });
+  }
+  return { show: show, hide: hide, isOpen: function () { return open; }, rebuild: function () { if (open) build(); }, redraw: function () { later(1); } };
+})();

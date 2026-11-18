@@ -42,6 +42,10 @@ footer{grid-column:1/3;padding:3px 12px;background:var(--pane);border-top:1px so
 .card dl{margin:4px 0 10px;display:grid;grid-template-columns:150px 1fr;gap:6px 14px}.card dt{font-weight:600}.card dd{margin:0;color:#c3d0de}
 .connbox{background:#2a1a12;border:1px solid #6a3a22;border-radius:8px;padding:10px 12px;margin:10px 0;text-align:left}.connbox p{margin:6px 0;color:#f0cdb8}.connbox small{color:var(--mut)}.btnlink{color:var(--acc);padding:4px 6px}
 #helpbtn{border-radius:50%;width:28px;padding:4px 0;font-weight:700}
+
+.tilts{display:flex;flex-wrap:wrap;gap:3px;align-items:center;padding:3px 6px 4px;background:var(--pane);border-top:1px solid #18212c}.tilts .tl{color:var(--mut);font-size:11.5px;margin-right:4px}.tilts button{padding:1px 7px;font-size:12px;border-radius:11px;font-variant-numeric:tabular-nums}.tilts button.all{margin-left:6px;border-color:#3a5f86;color:#9fd0ff}
+#tiltgrid{position:fixed;inset:0;z-index:45;background:var(--bg);display:flex;flex-direction:column}#tghead{display:flex;align-items:center;gap:14px;padding:8px 12px;background:var(--pane);border-bottom:1px solid var(--line)}#tghead b{font-size:14px}#tghead .mut{color:var(--mut);font-size:12px;margin-right:auto}
+#tgbody{flex:1;display:grid;gap:2px;background:var(--line);min-height:0;grid-auto-rows:1fr}.tgtile{position:relative;background:#070a0e;min-height:0;min-width:0;overflow:hidden;cursor:pointer}.tgtile.on{outline:2px solid var(--acc);outline-offset:-2px}.tgtile canvas{position:absolute;inset:0;width:100%;height:100%}.tglab{position:absolute;left:6px;top:5px;background:rgba(8,12,17,.8);border-radius:4px;padding:2px 7px;font-size:12px;font-variant-numeric:tabular-nums;pointer-events:none}
 </style></head>
 <body>
 <div id="app">
@@ -57,6 +61,7 @@ footer{grid-column:1/3;padding:3px 12px;background:var(--pane);border-top:1px so
 <footer id="status"></footer>
 </div>
 <div id="v3d" class="hidden"><canvas id="v3dcanvas"></canvas><div id="v3dinfo"></div><div id="v3dside"><h3>3-D view</h3><div id="v3dctl"></div></div></div>
+<div id="tiltgrid" class="hidden"><div id="tghead"><b id="tgtitle"></b><span class="mut">Click a scan to open it · drag to pan · wheel to zoom · ← → step time</span><button id="tgclose" class="pri">Close</button></div><div id="tgbody"></div></div>
 <div id="help" class="hidden"></div>
 <div id="toasts"></div>
 <script>/**
@@ -668,7 +673,7 @@ if (typeof module !== 'undefined') module.exports = RW;
 /* ===== io.js : fetch helpers, gzip/zip, WSR API, NEXRAD + MRMS on AWS, GRIB2 (PNG/simple packing), Open-Meteo profiles ===== */
 var RWIO = (function () {
   'use strict';
-  var IO = { cfg: { wsrBase: 'https://codiapi-wsr.rad.spaceforce.mil', proxy: '', nexradHosts: ['https://unidata-nexrad-level2.s3.amazonaws.com', 'https://noaa-nexrad-level2.s3.amazonaws.com'], mrmsHost: 'https://noaa-mrms-pds.s3.amazonaws.com' } };
+  var IO = { cfg: { wsrBase: 'https://codiapi-wsr.rad.spaceforce.mil', proxy: '', siteProxy: '', nexradHosts: ['https://unidata-nexrad-level2.s3.amazonaws.com', 'https://noaa-nexrad-level2.s3.amazonaws.com'], mrmsHost: 'https://noaa-mrms-pds.s3.amazonaws.com' } };
   function pad(n, w) { n = String(n); while (n.length < (w || 2)) n = '0' + n; return n; }
   IO.iso = function (ms) { var d = new Date(ms); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()); };
   IO.parseTime = function (s) { s = String(s); if (!/Z$|[+-]\d\d:?\d\d$/.test(s)) s += 'Z'; return Date.parse(s); };
@@ -914,7 +919,7 @@ var MC_EDGE=new Int32Array([0,265,515,778,1030,1295,1541,1804,2060,2309,2575,282
 var NMI = RW.NMI, KFT = RW.KFT, D2R = Math.PI / 180;
 var SITES = [['LC-39A', 28.6083, -80.6041], ['LC-39B', 28.6272, -80.6208], ['SLC-41', 28.5834, -80.5829], ['SLC-40', 28.5620, -80.5772], ['SLC-37', 28.5317, -80.5650], ['LC-36', 28.4716, -80.5378], ['SLC-46', 28.4585, -80.5284], ['LZ-1', 28.4858, -80.5444], ['SLF', 28.6150, -80.6945], ['XMR', 28.4676, -80.5666], ['COF', 28.2349, -80.6101]];
 var POLAR = {
-  REF: { label: 'Reflectivity (QC applied)', mom: 'REF', ct: 'ref_llcc', units: 'dBZ' }, REFRAW: { label: 'Reflectivity (raw, no QC)', mom: 'REF', ct: 'ref_llcc', units: 'dBZ', raw: true },
+  REF: { label: 'Base reflectivity (QC applied)', mom: 'REF', ct: 'ref_llcc', units: 'dBZ' }, REFRAW: { label: 'Base reflectivity (raw, no QC)', mom: 'REF', ct: 'ref_llcc', units: 'dBZ', raw: true },
   VEL: { label: 'Radial velocity', mom: 'VEL', ct: 'vel', units: 'm/s' }, SW: { label: 'Spectrum width', mom: 'SW', ct: 'sw', units: 'm/s' },
   ZDR: { label: 'Differential reflectivity', mom: 'ZDR', ct: 'zdr', units: 'dB' }, RHO: { label: 'Correlation coefficient', mom: 'RHO', ct: 'rho', units: '' },
   PHI: { label: 'Differential phase', mom: 'PHI', ct: 'phi', units: 'deg' }, PIA: { label: 'Est. attenuation (PIA)', mom: 'REF', ct: 'pia', units: 'dB', special: 'pia' },
@@ -948,7 +953,7 @@ function fmtT(ms, secs) { if (!ms) return '—'; var s = new Date(ms).toISOStrin
 function toast(msg, kind) { var t = h('div', { class: 'toast ' + (kind || ''), text: msg }); $('toasts').appendChild(t); setTimeout(function () { t.remove(); }, kind === 'err' ? 12000 : 5000); }
 function status(msg) { $('status').textContent = msg || ''; }
 var SAVE_KEYS = ['units', 'qc', 'llcc', 'prods', 'ctAssign', 'grid', 'tempLines', 'nexSite', 'maxFrames', 'rings', 'showSites', 'showCounty', 'wsrWindow', 'memMB'];
-function saveSettings() { try { var o = { io: RWIO.cfg, userCts: Object.keys(S.cts).filter(function (k) { return !S.cts[k].builtin; }).map(function (k) { return S.cts[k]; }) }; SAVE_KEYS.forEach(function (k) { o[k] = S[k]; }); localStorage.setItem('rw.settings.v1', JSON.stringify(o)); } catch (e) { } }
+function saveSettings() { try { var o = { io: { wsrBase: RWIO.cfg.wsrBase, proxy: RWIO.cfg.proxy === RWIO.cfg.siteProxy ? '' : RWIO.cfg.proxy }, userCts: Object.keys(S.cts).filter(function (k) { return !S.cts[k].builtin; }).map(function (k) { return S.cts[k]; }) }; SAVE_KEYS.forEach(function (k) { o[k] = S[k]; }); localStorage.setItem('rw.settings.v1', JSON.stringify(o)); } catch (e) { } }
 function loadSettings() { try { var o = JSON.parse(localStorage.getItem('rw.settings.v1') || 'null'); if (!o) return; SAVE_KEYS.forEach(function (k) { if (o[k] != null) S[k] = (typeof S[k] === 'object' && !Array.isArray(S[k])) ? Object.assign(S[k], o[k]) : o[k]; }); if (o.io) { RWIO.cfg.wsrBase = o.io.wsrBase || RWIO.cfg.wsrBase; RWIO.cfg.proxy = o.io.proxy || ''; } (o.userCts || []).forEach(function (c) { S.cts[c.id] = c; }); S.qc.version = 1; } catch (e) { } }
 
 /* ---------- catalog ---------- */
@@ -1099,6 +1104,15 @@ function renderXS(px, W, H, panel, path) {
   return { def: def, ct: ct, frame: frame, d0: d0, d1: d1 };
 }
 
+/* ---------- site-wide settings: docs/config.json next to the page ({"relay": "https://...workers.dev"}) ---------- */
+function normRelay(v) { v = String(v || '').trim(); if (!v || /YOURNAME|SOMETHING/.test(v)) return ''; return /[?&]url=$/.test(v) ? v : v.replace(/\/+$/, '') + '/?url='; }
+function loadSiteConfig() {
+  return fetch('config.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (c) {
+    if (!c) return; var rel = normRelay(c.relay); RWIO.cfg.siteProxy = rel; if (rel && !RWIO.cfg.proxy) RWIO.cfg.proxy = rel;
+    if (c.wsrBase) RWIO.cfg.wsrBase = String(c.wsrBase).replace(/\/+$/, '');
+  }).catch(function () { });
+}
+
 /* ===== app2.js : map panels, overlays, interaction, cross-section drawer ===== */
 var panelsUI = [], baseXY = null, dirty = { full: true }, dragging = false, rafPending = false;
 function buildBase() { function conv(lines) { return lines.map(function (l) { var a = new Float32Array(l.length); for (var i = 0; i < l.length; i += 2) { var xy = RW.ll2xy(l[i + 1], l[i], S.origin); a[i] = xy[0]; a[i + 1] = xy[1]; } return a; }); } baseXY = { key: S.origin.lat + ',' + S.origin.lon, coast: conv(RWMAP.coast), county: conv(RWMAP.county), sites: SITES.map(function (s) { var xy = RW.ll2xy(s[1], s[2], S.origin); return { n: s[0], x: xy[0], y: xy[1] }; }) }; }
@@ -1112,12 +1126,12 @@ function buildPanels() {
     var P = S.panels[pi], ui = { pi: pi };
     ui.src = h('select', { title: 'Data source', onchange: function () { P.src = ui.src.value; fillProd(ui, P); invalidate(); drawXS(); scheduleLLCC(); } });
     ui.prod = h('select', { title: 'Product', onchange: function () { P.prod = ui.prod.value; fillTilt(ui, P); invalidate(); drawXS(); } });
-    ui.tilt = h('select', { title: 'Elevation tilt (↑/↓ keys)', onchange: function () { P.tilt = +ui.tilt.value; invalidate(); } });
+    ui.tilt = h('div', { class: 'tilts' }); ui.ntilt = 0;
     ui.info = h('span', { class: 'pinfo' });
     ui.c1 = h('canvas', { class: 'raster' }); ui.c2 = h('canvas', { class: 'over' });
     ui.leg = h('div', { class: 'legend' }); ui.read = h('div', { class: 'readout' });
     ui.body = h('div', { class: 'pbody' }, [ui.c1, ui.c2, ui.read]);
-    ui.el = h('div', { class: 'panel' }, [h('div', { class: 'phead' }, [ui.src, ui.prod, ui.tilt, ui.info]), ui.body, ui.leg]);
+    ui.el = h('div', { class: 'panel' }, [h('div', { class: 'phead' }, [ui.src, ui.prod, ui.info]), ui.tilt, ui.body, ui.leg]);
     host.appendChild(ui.el); panelsUI.push(ui); fillSrc(ui, P); bindMap(ui);
   })(p);
   invalidate();
@@ -1131,10 +1145,12 @@ function fillProd(ui, P) {
   if (!prodDef(P.prod) || (!radar && POLAR[P.prod])) P.prod = radar ? 'REF' : 'cref'; ui.prod.value = P.prod; fillTilt(ui, P);
 }
 function fillTilt(ui, P) {
-  var def = prodDef(P.prod), fr = curFrame(P.src); ui.tilt.innerHTML = '';
+  var def = prodDef(P.prod), fr = curFrame(P.src); ui.tilt.innerHTML = ''; ui.ntilt = 0;
   if (!def || !def.polar || !fr || S.sources[P.src].kind !== 'radar') { ui.tilt.style.display = 'none'; return; }
-  var tl = tiltsFor(fr, def); ui.tilt.style.display = ''; if (P.tilt >= tl.length) P.tilt = Math.max(0, tl.length - 1);
-  tl.forEach(function (s, i) { ui.tilt.appendChild(opt(i, s.el.toFixed(1) + '°', i === P.tilt)); });
+  var tl = tiltsFor(fr, def); ui.tilt.style.display = ''; ui.ntilt = tl.length; if (P.tilt >= tl.length) P.tilt = Math.max(0, tl.length - 1);
+  ui.tilt.appendChild(h('span', { class: 'tl', text: 'Elevation' }));
+  tl.forEach(function (s, i) { ui.tilt.appendChild(h('button', { class: i === P.tilt ? 'on' : '', text: s.el.toFixed(1) + '°', title: 'Elevation ' + s.el.toFixed(2) + '° scanned ' + fmtT(s.t0, true).slice(11) + ' (↑/↓ keys step through tilts)', onclick: function () { P.tilt = i; fillTilt(ui, P); invalidate(); } })); });
+  if (tl.length > 1) ui.tilt.appendChild(h('button', { class: 'all', text: 'All tilts', title: 'Show every elevation scan side by side', onclick: function () { TiltGrid.show(ui.pi); } }));
 }
 function refreshSelectors() { panelsUI.forEach(function (ui) { fillSrc(ui, S.panels[ui.pi]); }); }
 
@@ -1262,6 +1278,48 @@ function bindXS(o) {
   o.c.addEventListener('mouseleave', function () { xsUI.forEach(function (u) { u.hover = null; }); drawXS(); });
 }
 
+/* ---------- all-tilts grid: every elevation scan of one product side by side ---------- */
+var TiltGrid = (function () {
+  var pi = 0, tiles = [], open = false, pend = false;
+  function panel() { return S.panels[pi]; }
+  function show(i) { pi = i; open = true; $('tiltgrid').classList.remove('hidden'); build(); }
+  function hide() { open = false; $('tiltgrid').classList.add('hidden'); }
+  function build() {
+    var P = panel(), def = prodDef(P.prod), fr = curFrame(P.src), host = $('tgbody'); host.innerHTML = ''; tiles = [];
+    if (!fr || !def || !def.polar) { hide(); return; }
+    var tl = tiltsFor(fr, def), n = tl.length, cols = n <= 4 ? 2 : n <= 9 ? 3 : n <= 12 ? 4 : 5; host.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
+    $('tgtitle').textContent = (fr.site || S.sources[P.src].label) + ' · ' + def.label + ' · volume ' + fmtT(fr.time, true) + ' · ' + n + ' elevation scans';
+    tl.forEach(function (sw, i) { var c = h('canvas'), lab = h('div', { class: 'tglab' }), el = h('div', { class: 'tgtile' + (i === P.tilt ? ' on' : '') }, [c, lab]), t = { c: c, lab: lab, i: i, sw: sw, el: el }; host.appendChild(el); tiles.push(t); bind(t); });
+    draw(1);
+  }
+  function draw(step) {
+    if (!open) return; var P = panel(), fr = curFrame(P.src), ref = S.trajP && S.trajP.length ? S.trajP[0] : null;
+    tiles.forEach(function (t) {
+      var W = t.c.clientWidth | 0, H = t.c.clientHeight | 0; if (W < 20 || H < 20) return;
+      if (t.W !== W || t.H !== H) { t.W = W; t.H = H; t.c.width = W; t.c.height = H; t.img = t.c.getContext('2d').createImageData(W, H); t.px = new Uint32Array(t.img.data.buffer); }
+      renderRaster(t.px, W, H, S.view, { src: P.src, prod: P.prod, tilt: t.i }, step); var c = t.c.getContext('2d'); c.putImageData(t.img, 0, 0);
+      var sc = S.view.scale, X = function (x) { return W / 2 + (x - S.view.cx) * sc; }, Y = function (y) { return H / 2 - (y - S.view.cy) * sc; };
+      function poly(a) { c.beginPath(); for (var k = 0; k < a.length; k += 2) { if (k) c.lineTo(X(a[k]), Y(a[k + 1])); else c.moveTo(X(a[k]), Y(a[k + 1])); } c.stroke(); }
+      c.lineWidth = 1; c.strokeStyle = 'rgba(225,235,245,.7)'; baseXY.coast.forEach(poly);
+      if (S.showSites) { c.fillStyle = '#fff'; baseXY.sites.forEach(function (s) { c.fillRect(X(s.x) - 1.5, Y(s.y) - 1.5, 3, 3); }); }
+      if (S.trajP && S.trajP.length > 1) { c.strokeStyle = '#3df0ff'; c.lineWidth = 1.5; c.beginPath(); S.trajP.forEach(function (q, j) { if (j) c.lineTo(X(q.x), Y(q.y)); else c.moveTo(X(q.x), Y(q.y)); }); c.stroke(); }
+      var r = rxy(fr); c.fillStyle = '#ffd24a'; c.beginPath(); c.moveTo(X(r[0]), Y(r[1]) - 5); c.lineTo(X(r[0]) + 4, Y(r[1]) + 3); c.lineTo(X(r[0]) - 4, Y(r[1]) + 3); c.fill();
+      var p = ref || baseXY.sites[3], bh = RW.beamAt(Math.hypot(p.x - r[0], p.y - r[1]), t.sw.el, (fr.alt || 0) / 1000).h;
+      t.lab.textContent = t.sw.el.toFixed(1) + '°  ·  ' + fmtT(t.sw.t0, true).slice(11) + '  ·  beam at ' + (ref ? 'pad' : 'SLC-40') + ' ' + fmtH(bh) + ' (' + RW.tempAt(S.prof, bh).toFixed(0) + ' °C)';
+    });
+  }
+  function later(step) { if (pend) return; pend = true; requestAnimationFrame(function () { pend = false; draw(step); }); }
+  function bind(t) {
+    var down = null, moved = false;
+    t.c.addEventListener('mousedown', function (e) { down = { x: e.clientX, y: e.clientY, cx: S.view.cx, cy: S.view.cy }; moved = false; e.preventDefault(); });
+    t.c.addEventListener('mousemove', function (e) { if (!down) return; var dx = e.clientX - down.x, dy = e.clientY - down.y; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true; if (moved) { S.view.cx = down.cx - dx / S.view.scale; S.view.cy = down.cy + dy / S.view.scale; later(2); } });
+    t.c.addEventListener('mouseup', function () { if (!down) return; down = null; if (moved) { draw(1); invalidate(); } else { panel().tilt = t.i; hide(); fillTilt(panelsUI[pi], panel()); invalidate(); } });
+    t.c.addEventListener('mouseleave', function () { if (down && moved) { down = null; draw(1); invalidate(); } });
+    t.c.addEventListener('wheel', function (e) { e.preventDefault(); var r = t.c.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, kx = S.view.cx + (px - t.W / 2) / S.view.scale, ky = S.view.cy - (py - t.H / 2) / S.view.scale; S.view.scale = Math.max(0.6, Math.min(120, S.view.scale * Math.exp(-e.deltaY * 0.0015))); S.view.cx = kx - (px - t.W / 2) / S.view.scale; S.view.cy = ky + (py - t.H / 2) / S.view.scale; later(1); invalidate(); }, { passive: false });
+  }
+  return { show: show, hide: hide, isOpen: function () { return open; }, rebuild: function () { if (open) build(); }, redraw: function () { later(1); } };
+})();
+
 /* ===== app3.js : data loading, time bar, sidebar tabs (Data, Products, Colours, QC, Temps, Flight path, LLCC, Settings) ===== */
 var worker = null, jobs = {}, jobId = 0;
 function decodeBuf(u8) {
@@ -1346,7 +1404,7 @@ function loadTrajText(txt, name) { try { var t = RW.parseTrajectory(txt); S.traj
 var playTimer = null;
 function times() { return primarySrc().frames.map(function (f) { return f.time; }); }
 function updateTimebar() { var t = times(), sl = $('tslider'); sl.max = Math.max(0, t.length - 1); var i = t.indexOf(S.time); if (i < 0 && t.length) { i = t.length - 1; S.time = t[i]; } sl.value = Math.max(0, i); $('tlabel').textContent = t.length ? fmtT(S.time, true) + '   (' + (i + 1) + '/' + t.length + ')' : 'no data loaded'; }
-function setTimeIdx(i) { var t = times(); if (!t.length) return; i = (i + t.length) % t.length; S.time = t[i]; updateTimebar(); panelsUI.forEach(function (ui) { fillTilt(ui, S.panels[ui.pi]); }); invalidate(); drawXS(); scheduleLLCC(); if (View3D.isOpen()) View3D.rebuild(); }
+function setTimeIdx(i) { var t = times(); if (!t.length) return; i = (i + t.length) % t.length; S.time = t[i]; updateTimebar(); panelsUI.forEach(function (ui) { fillTilt(ui, S.panels[ui.pi]); }); invalidate(); drawXS(); scheduleLLCC(); if (View3D.isOpen()) View3D.rebuild(); TiltGrid.rebuild(); }
 function stepTime(d) { setTimeIdx(times().indexOf(S.time) + d); }
 function togglePlay() { if (playTimer) { clearInterval(playTimer); playTimer = null; } else playTimer = setInterval(function () { stepTime(1); }, 450); $('play').textContent = playTimer ? '❚❚' : '▶'; }
 
@@ -1489,8 +1547,8 @@ function tabLLCC(b) {
     btn('Reset to defaults', function () { S.llcc = RW.defaultLLCC(); saveSettings(); prepTraj(); scheduleLLCC(); renderTab(); })]));
 }
 function tabSet(b) {
-  var base = h('input', { type: 'text', value: RWIO.cfg.wsrBase, onchange: function () { RWIO.cfg.wsrBase = base.value.replace(/\/+$/, ''); saveSettings(); } }), prox = h('input', { type: 'text', value: RWIO.cfg.proxy, placeholder: 'https://your-relay.workers.dev/?url=', onchange: function () { RWIO.cfg.proxy = prox.value.trim(); saveSettings(); } });
-  b.appendChild(sec('Connections', [field('WSR API base address', base), field('Relay (optional)', prox, 'Only needed if the browser is refused a direct connection to the WSR API. The repo includes a small Cloudflare Worker relay; paste its address here, ending in ?url='), btn('Test WSR connection', async function () { try { var r = await RWIO.wsrLatest(); toast('WSR API reachable. Latest file: ' + (r ? fmtT(r.time, true) + ', ' + Math.round(r.size / 1024) + ' kB' : 'none listed')); } catch (e) { toast('WSR API: ' + corsHelp(e), 'err'); } })]));
+  var base = h('input', { type: 'text', value: RWIO.cfg.wsrBase, onchange: function () { RWIO.cfg.wsrBase = base.value.replace(/\/+$/, ''); saveSettings(); } }), prox = h('input', { type: 'text', value: RWIO.cfg.proxy, placeholder: 'https://your-relay.workers.dev/?url=', onchange: function () { RWIO.cfg.proxy = normRelay(prox.value) || RWIO.cfg.siteProxy; prox.value = RWIO.cfg.proxy; saveSettings(); } });
+  b.appendChild(sec('Connections', [field('WSR API base address', base), field('Relay', prox, RWIO.cfg.siteProxy ? 'This site supplies a relay automatically (' + RWIO.cfg.siteProxy.replace(/\/\?url=$/, '') + '). Leave as is unless you want to use a different one.' : 'Needed when the browser is refused a direct connection to the WSR API. To set it once for everyone, put the address in docs/config.json in the repo.'), btn('Test WSR connection', async function () { try { var r = await RWIO.wsrLatest(); toast('WSR API reachable. Latest file: ' + (r ? fmtT(r.time, true) + ', ' + Math.round(r.size / 1024) + ' kB' : 'none listed')); } catch (e) { toast('WSR API: ' + corsHelp(e), 'err'); } })]));
   function regrid() { saveSettings(); S.qc.version++; invalidate(); drawXS(); scheduleLLCC(); }
   b.appendChild(sec('Analysis grid', [field('Preset', sel([['150|1|radar', 'Regional: 1 km, ±150 km about the radar'], ['75|0.5|path', 'Launch area: 0.5 km, ±75 km about the flight-path origin'], ['250|2|radar', 'Wide: 2 km, ±250 km about the radar']], [S.grid.half, S.grid.dx, S.grid.center].join('|'), function (v) { var p = v.split('|'); S.grid.half = +p[0]; S.grid.dx = +p[1]; S.grid.center = p[2]; regrid(); })), note('Vertical spacing is 250 m to 20 km. Each grid cell takes the highest gate that falls inside it, so the grid errs toward more echo. MRMS mosaics keep the grid they were fetched on.')]));
   b.appendChild(sec('Display', [field('Heights', sel([['kft', 'kft'], ['km', 'km']], S.units.h, function (v) { S.units.h = v; saveSettings(); invalidate(); drawXS(); renderTab(); })), field('Distances', sel([['nmi', 'nautical miles'], ['km', 'km']], S.units.d, function (v) { S.units.d = v; saveSettings(); invalidate(); drawXS(); })),
@@ -1647,7 +1705,7 @@ var View3D = (function () {
 
 /* ===== main.js : wiring ===== */
 (function () {
-  loadSettings(); buildBase(); buildTabs(); renderTab(); buildPanels(); updateTimebar(); updateWelcome();
+  loadSettings(); loadSiteConfig().then(function () { if (curTab === 'set') renderTab(); }); buildBase(); buildTabs(); renderTab(); buildPanels(); updateTimebar(); updateWelcome();
   $('helpbtn').addEventListener('click', function () { showHelp(true); });
   $('npanels').value = S.npanels; $('npanels').addEventListener('change', function () { S.npanels = +this.value; buildPanels(); drawXS(); });
   $('toolxs').addEventListener('click', function () { setTool(S.tool === 'xs' ? 'pan' : 'xs'); if (S.tool === 'xs') toast('Now drag a line across the map'); });
@@ -1659,11 +1717,12 @@ var View3D = (function () {
   $('tslider').addEventListener('input', function () { setTimeIdx(+this.value); });
   $('prev').addEventListener('click', function () { stepTime(-1); }); $('next').addEventListener('click', function () { stepTime(1); }); $('play').addEventListener('click', togglePlay);
   $('live').addEventListener('change', function () { setLive(this.checked); });
-  window.addEventListener('resize', function () { invalidate(); drawXS(); });
+  window.addEventListener('resize', function () { invalidate(); drawXS(); TiltGrid.redraw(); });
+  $('tgclose').addEventListener('click', TiltGrid.hide);
   window.addEventListener('keydown', function (e) {
     if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
-    if (e.key === 'ArrowLeft') stepTime(-1); else if (e.key === 'ArrowRight') stepTime(1); else if (e.key === ' ') { togglePlay(); e.preventDefault(); } else if (e.key === 'Escape') { View3D.hide(); setTool('pan'); showHelp(false); }
-    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { var P = S.panels[0], ui = panelsUI[0], n = ui.tilt.options.length; if (n) { P.tilt = Math.max(0, Math.min(n - 1, P.tilt + (e.key === 'ArrowUp' ? 1 : -1))); S.panels.forEach(function (q, i) { if (i && q.src === P.src) q.tilt = P.tilt; }); panelsUI.forEach(function (u) { fillTilt(u, S.panels[u.pi]); }); invalidate(); e.preventDefault(); } }
+    if (e.key === 'ArrowLeft') stepTime(-1); else if (e.key === 'ArrowRight') stepTime(1); else if (e.key === ' ') { togglePlay(); e.preventDefault(); } else if (e.key === 'Escape') { TiltGrid.hide(); View3D.hide(); setTool('pan'); showHelp(false); }
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { var P = S.panels[0], ui = panelsUI[0], n = ui.ntilt; if (n) { P.tilt = Math.max(0, Math.min(n - 1, P.tilt + (e.key === 'ArrowUp' ? 1 : -1))); S.panels.forEach(function (q, i) { if (i && q.src === P.src) q.tilt = P.tilt; }); panelsUI.forEach(function (u) { fillTilt(u, S.panels[u.pi]); }); invalidate(); e.preventDefault(); } }
   });
   ['dragover', 'dragenter'].forEach(function (ev) { window.addEventListener(ev, function (e) { e.preventDefault(); document.body.classList.add('dragging'); }); });
   ['dragleave', 'drop'].forEach(function (ev) { window.addEventListener(ev, function (e) { e.preventDefault(); document.body.classList.remove('dragging'); }); });

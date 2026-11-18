@@ -3,7 +3,7 @@
 var NMI = RW.NMI, KFT = RW.KFT, D2R = Math.PI / 180;
 var SITES = [['LC-39A', 28.6083, -80.6041], ['LC-39B', 28.6272, -80.6208], ['SLC-41', 28.5834, -80.5829], ['SLC-40', 28.5620, -80.5772], ['SLC-37', 28.5317, -80.5650], ['LC-36', 28.4716, -80.5378], ['SLC-46', 28.4585, -80.5284], ['LZ-1', 28.4858, -80.5444], ['SLF', 28.6150, -80.6945], ['XMR', 28.4676, -80.5666], ['COF', 28.2349, -80.6101]];
 var POLAR = {
-  REF: { label: 'Reflectivity (QC applied)', mom: 'REF', ct: 'ref_llcc', units: 'dBZ' }, REFRAW: { label: 'Reflectivity (raw, no QC)', mom: 'REF', ct: 'ref_llcc', units: 'dBZ', raw: true },
+  REF: { label: 'Base reflectivity (QC applied)', mom: 'REF', ct: 'ref_llcc', units: 'dBZ' }, REFRAW: { label: 'Base reflectivity (raw, no QC)', mom: 'REF', ct: 'ref_llcc', units: 'dBZ', raw: true },
   VEL: { label: 'Radial velocity', mom: 'VEL', ct: 'vel', units: 'm/s' }, SW: { label: 'Spectrum width', mom: 'SW', ct: 'sw', units: 'm/s' },
   ZDR: { label: 'Differential reflectivity', mom: 'ZDR', ct: 'zdr', units: 'dB' }, RHO: { label: 'Correlation coefficient', mom: 'RHO', ct: 'rho', units: '' },
   PHI: { label: 'Differential phase', mom: 'PHI', ct: 'phi', units: 'deg' }, PIA: { label: 'Est. attenuation (PIA)', mom: 'REF', ct: 'pia', units: 'dB', special: 'pia' },
@@ -37,7 +37,7 @@ function fmtT(ms, secs) { if (!ms) return '—'; var s = new Date(ms).toISOStrin
 function toast(msg, kind) { var t = h('div', { class: 'toast ' + (kind || ''), text: msg }); $('toasts').appendChild(t); setTimeout(function () { t.remove(); }, kind === 'err' ? 12000 : 5000); }
 function status(msg) { $('status').textContent = msg || ''; }
 var SAVE_KEYS = ['units', 'qc', 'llcc', 'prods', 'ctAssign', 'grid', 'tempLines', 'nexSite', 'maxFrames', 'rings', 'showSites', 'showCounty', 'wsrWindow', 'memMB'];
-function saveSettings() { try { var o = { io: RWIO.cfg, userCts: Object.keys(S.cts).filter(function (k) { return !S.cts[k].builtin; }).map(function (k) { return S.cts[k]; }) }; SAVE_KEYS.forEach(function (k) { o[k] = S[k]; }); localStorage.setItem('rw.settings.v1', JSON.stringify(o)); } catch (e) { } }
+function saveSettings() { try { var o = { io: { wsrBase: RWIO.cfg.wsrBase, proxy: RWIO.cfg.proxy === RWIO.cfg.siteProxy ? '' : RWIO.cfg.proxy }, userCts: Object.keys(S.cts).filter(function (k) { return !S.cts[k].builtin; }).map(function (k) { return S.cts[k]; }) }; SAVE_KEYS.forEach(function (k) { o[k] = S[k]; }); localStorage.setItem('rw.settings.v1', JSON.stringify(o)); } catch (e) { } }
 function loadSettings() { try { var o = JSON.parse(localStorage.getItem('rw.settings.v1') || 'null'); if (!o) return; SAVE_KEYS.forEach(function (k) { if (o[k] != null) S[k] = (typeof S[k] === 'object' && !Array.isArray(S[k])) ? Object.assign(S[k], o[k]) : o[k]; }); if (o.io) { RWIO.cfg.wsrBase = o.io.wsrBase || RWIO.cfg.wsrBase; RWIO.cfg.proxy = o.io.proxy || ''; } (o.userCts || []).forEach(function (c) { S.cts[c.id] = c; }); S.qc.version = 1; } catch (e) { } }
 
 /* ---------- catalog ---------- */
@@ -186,4 +186,13 @@ function renderXS(px, W, H, panel, path) {
     for (ix = 0; ix < W; ix++) { p = pt(ix); var gx = Math.round((p[0] - sp.x0) / sp.dx), gy = Math.round((p[1] - sp.y0) / sp.dx); if (gx < 0 || gy < 0 || gx >= sp.nx || gy >= sp.ny) continue; var base = (gy * sp.nx + gx) * sp.nz; for (iy = 0; iy < H; iy++) { var kz = Math.round((H - 1 - iy) / (H - 1) * top / sp.dz); if (kz < sp.nz) { var rv = G.data[base + kz]; if (rv) px[iy * W + ix] = RWC.lookup(L, RW.dec(rv)); } } }
   }
   return { def: def, ct: ct, frame: frame, d0: d0, d1: d1 };
+}
+
+/* ---------- site-wide settings: docs/config.json next to the page ({"relay": "https://...workers.dev"}) ---------- */
+function normRelay(v) { v = String(v || '').trim(); if (!v || /YOURNAME|SOMETHING/.test(v)) return ''; return /[?&]url=$/.test(v) ? v : v.replace(/\/+$/, '') + '/?url='; }
+function loadSiteConfig() {
+  return fetch('config.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (c) {
+    if (!c) return; var rel = normRelay(c.relay); RWIO.cfg.siteProxy = rel; if (rel && !RWIO.cfg.proxy) RWIO.cfg.proxy = rel;
+    if (c.wsrBase) RWIO.cfg.wsrBase = String(c.wsrBase).replace(/\/+$/, '');
+  }).catch(function () { });
 }

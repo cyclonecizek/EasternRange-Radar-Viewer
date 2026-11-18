@@ -33,6 +33,17 @@ The browser may be refused a direct connection to `codiapi-wsr.rad.spaceforce.mi
 * Deploy `relay/worker.js` as a Cloudflare Worker and paste `https://<worker>.workers.dev/?url=` into
   Settings > Connections > Relay. The relay only forwards to the WSR API host.
 
+## Relay for everyone (docs/config.json)
+
+`docs/config.json` holds site-wide settings. Put your Cloudflare Worker address in it once and every visitor
+gets it automatically, with nothing to paste:
+
+```json
+{ "relay": "https://wsr-relay.YOURNAME.workers.dev" }
+```
+
+A relay address someone types into Settings on their own computer still takes priority for them.
+
 ## What it does
 
 | Area | Detail |

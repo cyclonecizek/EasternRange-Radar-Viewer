@@ -1,7 +1,7 @@
 /* ===== io.js : fetch helpers, gzip/zip, WSR API, NEXRAD + MRMS on AWS, GRIB2 (PNG/simple packing), Open-Meteo profiles ===== */
 var RWIO = (function () {
   'use strict';
-  var IO = { cfg: { wsrBase: 'https://codiapi-wsr.rad.spaceforce.mil', proxy: '', nexradHosts: ['https://unidata-nexrad-level2.s3.amazonaws.com', 'https://noaa-nexrad-level2.s3.amazonaws.com'], mrmsHost: 'https://noaa-mrms-pds.s3.amazonaws.com' } };
+  var IO = { cfg: { wsrBase: 'https://codiapi-wsr.rad.spaceforce.mil', proxy: '', siteProxy: '', nexradHosts: ['https://unidata-nexrad-level2.s3.amazonaws.com', 'https://noaa-nexrad-level2.s3.amazonaws.com'], mrmsHost: 'https://noaa-mrms-pds.s3.amazonaws.com' } };
   function pad(n, w) { n = String(n); while (n.length < (w || 2)) n = '0' + n; return n; }
   IO.iso = function (ms) { var d = new Date(ms); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()); };
   IO.parseTime = function (s) { s = String(s); if (!/Z$|[+-]\d\d:?\d\d$/.test(s)) s += 'Z'; return Date.parse(s); };
